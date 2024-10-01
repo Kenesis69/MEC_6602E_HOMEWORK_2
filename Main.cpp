@@ -10,7 +10,7 @@ public:
     //variable
     double x1,x2,Delta_t;
     int n;
-
+    
 
     //constructor
     Mesh(double a, double b, int c, int d) : x1(a), x2(b), n(c), Delta_t(d) {
@@ -42,6 +42,7 @@ class Solveur{
 public:
     Mesh Mesh_to_use;
     string method;
+    std::vector<double> init_p, init_rho, init_u;
 
     // Constructor
     Solveur (Mesh a, string b) : Mesh_to_use(a), method(b) {
@@ -50,14 +51,22 @@ public:
     };
 
     // Creation matrice 1D contenant les conditions initiales 
-    std::vector<std::vector<double>> Condition_initiales(std::vector<double> p, std::vector<double>rho,std::vector<double>u){
+    void Condition_initiales(std::vector<double> p, std::vector<double>rho,std::vector<double>u){
                 if (p.size() != Mesh_to_use.n || rho.size() != Mesh_to_use.n || u.size() != Mesh_to_use.n){
                     cout<< "ERROR: VECTOR DOES NOT MATCH NUMBHER OF ELEMENT"<< endl;
                     exit(1);
                 }
                 else {cout<< "Condition has been succesfully entered"<< endl;}
+                init_p = p;
+                init_rho = rho;
+                init_u = u;
+    };
+
+    void Solve_Mac_Cormack_Method(){
+        cout<< "Beginning Mac Cormack Method"<< endl;
+        // initialisation des matrice Q,E,S selon les conditions initiales
         
-    }
+    };
 
     
 };
@@ -66,10 +75,11 @@ public:
 int main(){
     //definition parameters
     double c = 0.5; //constant c
-    double x1 = 0; // beginning
+    double x1 = 0.0; // beginning
     double x2  = 1000 ; // end
     int n = 5; // number of point
-    std::string method = "";
+    double A = 1.0; // definition de l'aire
+    string method = "" ;
 
     double delta_x = (x2 - x1)/(n-1); //delta_x calculated
     double delta_t = 2; //delta_t 
@@ -101,12 +111,10 @@ int main(){
         }
     }
 
-    
-
     Solveur_Devoir.Condition_initiales(Init_p,Init_rho,Init_u);
 
 
-    cout << endl;
+
     return 0;
     
 };
