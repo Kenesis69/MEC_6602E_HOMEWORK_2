@@ -4,16 +4,45 @@
 using namespace std; 
 constexpr double pi = 3.14159265358979323846;
 
+
+//MATH FONCTIONS
+
+//RAW MULTIPLICATION OF 2 VECTORS --> VECTOR
+std::vector<double> Vector_Raw_Multiply(std::vector<double> A, std::vector<double> B){
+    if (A.size() != B.size()) {cout << "Vector_Raw_Multiply dimension conflict" << endl; exit(1);}
+
+    std::vector<double> C;
+
+    for (int i = 0; i<A.size(); i++){
+        C.push_back(A[i]*B[i]);
+    };
+    return C;
+};
+
+//RAW SQUARIFICATION OF 1 VECTORS --> VECTOR
+std::vector<double> Vector_Raw_Multiply(std::vector<double> A){
+    
+
+    std::vector<double> C;
+
+    for (int i = 0; i<A.size(); i++){
+        C.push_back(A[i]*A[i]);
+    };
+    return C; 
+};
+
+
+
 // The class Mesh will have all the information regarding space and time parameters
 class Mesh{
 public:
     //variable
     double x1,x2,Delta_t;
     int n;
-    
+    std::vector<double> area; 
 
     //constructor
-    Mesh(double a, double b, int c, int d) : x1(a), x2(b), n(c), Delta_t(d) {
+    Mesh(double a, double b, int c, int d, std::vector<double> e ) : x1(a), x2(b), n(c), Delta_t(d), area(e) {
     cout <<"********************** Mesh *****************************" << std::endl;
     cout <<"beginning x = "<< Mesh::x1 << std::endl;
     cout <<"end x = "<< Mesh::x2 << std::endl;
@@ -21,7 +50,7 @@ public:
     cout <<"number of nodes n = "<< Mesh::n << std::endl;
     }; 
 
-    
+
     // vector getter and printer
     std::vector<double> get_vector(){
         vector<double> result;
@@ -65,7 +94,8 @@ public:
     void Solve_Mac_Cormack_Method(){
         cout<< "Beginning Mac Cormack Method"<< endl;
         // initialisation des matrice Q,E,S selon les conditions initiales
-        
+        std::vector<std::vector<double>> Q = {Vector_Raw_Multiply(init_rho,Mesh_to_use.area), Vector_Raw_Multiply(init_u,Vector_Raw_Multiply(init_rho,Mesh_to_use.area)),Mesh_to_use.area};
+        std::vector<std::vector<double>> Q = {Vector_Raw_Multiply(init_rho,Mesh_to_use.area), Vector_Raw_Multiply(init_u,Vector_Raw_Multiply(init_rho,Mesh_to_use.area)),Mesh_to_use.area};
     };
 
     
@@ -78,7 +108,7 @@ int main(){
     double x1 = 0.0; // beginning
     double x2  = 1000 ; // end
     int n = 5; // number of point
-    double A = 1.0; // definition de l'aire
+    std::vector<double> area; // definition de l'aire
     string method = "" ;
 
     double delta_x = (x2 - x1)/(n-1); //delta_x calculated
@@ -87,9 +117,15 @@ int main(){
     cout <<"********************** PARAMETERS ***************************" << std::endl;
     cout<< "The CFL is:  "<<CFL << std::endl; 
 
+    //defining area for now is case 1
+    for (int i = 0; i<n ; i++){
+        area.push_back(1.0);
+    }    
+
+
 
     // Beginning the Solve Process
-    Mesh Mesh_devoir(x1,x2,n,delta_t); // declaration object Mesh
+    Mesh Mesh_devoir(x1,x2,n,delta_t,area); // declaration object Mesh
     
     Solveur Solveur_Devoir(Mesh_devoir,method); // Declaration solveur
     
@@ -98,7 +134,7 @@ int main(){
     std::vector<double> Init_rho ;
     std::vector<double> Init_u ;
     std::vector<double> x_vector = Mesh_devoir.get_vector();
-    for (int i = 0; i < 5;i++) {
+    for (int i = 0; i < n;i++) {
         if (x_vector[i] < 500 ){
             Init_p.push_back(1);
             Init_rho.push_back(1);
@@ -112,8 +148,7 @@ int main(){
     }
 
     Solveur_Devoir.Condition_initiales(Init_p,Init_rho,Init_u);
-
-
+    Solveur_Devoir.Solve_Mac_Cormack_Method();
 
     return 0;
     
