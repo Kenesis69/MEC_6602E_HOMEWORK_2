@@ -5,7 +5,38 @@ using namespace std;
 constexpr double pi = 3.14159265358979323846;
 
 
+//print fonction
+template <typename T>
+void printMatrix(const vector<vector<T>>& matrix) {
+    for (const auto& row : matrix) {
+        for (const T& element : row) {
+            cout << element << " ";
+        }
+        cout << endl; // Move to the next line after printing each row
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
 //MATH FONCTIONS
+//zeros fonction np.zero
+std::vector<double> zero(int n){
+    std::vector<double> C;
+    for (int i = 0; i < n; i++){
+        C.push_back(0);
+    }
+    return C;
+}
 
 //RAW MULTIPLICATION OF 2 VECTORS --> VECTOR
 std::vector<double> Vector_Raw_Multiply(std::vector<double> A, std::vector<double> B){
@@ -20,7 +51,7 @@ std::vector<double> Vector_Raw_Multiply(std::vector<double> A, std::vector<doubl
 };
 
 //RAW SQUARIFICATION OF 1 VECTORS --> VECTOR
-std::vector<double> Vector_Raw_Multiply(std::vector<double> A){
+std::vector<double> Vector_Raw_Square(std::vector<double> A){
     
 
     std::vector<double> C;
@@ -30,6 +61,54 @@ std::vector<double> Vector_Raw_Multiply(std::vector<double> A){
     };
     return C; 
 };
+
+// substract vector A from B that fucking simple. is not commutatif
+std::vector<double> Vector_Substract(std::vector<double> A,std::vector<double> B){
+    if (A.size() != B.size()) {cout << "Vector_Raw_Multiply dimension conflict" << endl; exit(1);}
+
+    std::vector<double> C;
+
+    for (int i = 0; i< A.size();i++){
+        C.push_back(A[i]-B[i]);
+    }
+    return C;
+}
+
+//addition vector A from B that fucking simple.
+std::vector<double> Vector_Addition(std::vector<double> A,std::vector<double> B){
+    if (A.size() != B.size()) {cout << "Vector_Raw_Multiply dimension conflict" << endl; exit(1);}
+
+    std::vector<double> C;
+
+    for (int i = 0; i< A.size();i++){
+        C.push_back(A[i]+B[i]);
+    }
+    return C;
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -67,11 +146,43 @@ public:
     };
 };
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 class Solveur{
 public:
     Mesh Mesh_to_use;
     string method;
-    std::vector<double> init_p, init_rho, init_u;
+    std::vector<double> init_p, init_rho, init_u, init_e;
+    double gamma = 1.40;
+    std::vector<std::vector<double>> Q, F, S;
 
     // Constructor
     Solveur (Mesh a, string b) : Mesh_to_use(a), method(b) {
@@ -80,7 +191,7 @@ public:
     };
 
     // Creation matrice 1D contenant les conditions initiales 
-    void Condition_initiales(std::vector<double> p, std::vector<double>rho,std::vector<double>u){
+    void Condition_initiales(std::vector<double> p, std::vector<double>rho,std::vector<double>u, std::vector<double> e){
                 if (p.size() != Mesh_to_use.n || rho.size() != Mesh_to_use.n || u.size() != Mesh_to_use.n){
                     cout<< "ERROR: VECTOR DOES NOT MATCH NUMBHER OF ELEMENT"<< endl;
                     exit(1);
@@ -89,17 +200,60 @@ public:
                 init_p = p;
                 init_rho = rho;
                 init_u = u;
+                init_e = e;
     };
 
-    void Solve_Mac_Cormack_Method(){
-        cout<< "Beginning Mac Cormack Method"<< endl;
+
+    void Initialise_Euler_Element(){
+        cout<< "INITIALATION MAIN VECTORS"<< endl;
+
+        //------------------------INITIALISATION------------------------------//
+        //Itermediate variable
+        std::vector<double> rho_u = Vector_Raw_Multiply(init_rho,init_u); //simple ru
+        std::vector<double> rho_u_squared = Vector_Raw_Multiply(rho_u,init_u); // simple ru squared
+        
+
+        // now we initialise P = (gamma - 1)(e - pu^2/2)
+        std::vector<double> P;
+        for (int i = 0; i< Mesh_to_use.n; i++){
+            P.push_back((gamma-1)*(init_e[i]- rho_u_squared[i]*0.5));
+        }
+        
+
+        // Initiasing dA over dx
+        std::vector<double> dAdx;
+        for (int i = 0; i< Mesh_to_use.n; i++){
+            if (i == 0 || i == Mesh_to_use.n-1){
+                dAdx.push_back(0);
+            }
+            else{
+                dAdx.push_back((Mesh_to_use.area[i-1] + Mesh_to_use.area[i+1])/2);
+            }
+        }
+
+
         // initialisation des matrice Q,E,S selon les conditions initiales
-        std::vector<std::vector<double>> Q = {Vector_Raw_Multiply(init_rho,Mesh_to_use.area), Vector_Raw_Multiply(init_u,Vector_Raw_Multiply(init_rho,Mesh_to_use.area)),Mesh_to_use.area};
-        std::vector<std::vector<double>> Q = {Vector_Raw_Multiply(init_rho,Mesh_to_use.area), Vector_Raw_Multiply(init_u,Vector_Raw_Multiply(init_rho,Mesh_to_use.area)),Mesh_to_use.area};
+        Q = {Vector_Raw_Multiply(init_rho,Mesh_to_use.area),Vector_Raw_Multiply(rho_u,Mesh_to_use.area),Vector_Raw_Multiply(init_e,Mesh_to_use.area)};
+        F = {Vector_Raw_Multiply(rho_u,Mesh_to_use.area),Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(rho_u_squared,P)),Vector_Raw_Multiply(Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(init_e,P)),init_u)};
+        S = {zero(Mesh_to_use.n),Vector_Raw_Multiply(P,dAdx),zero(Mesh_to_use.n)};
+        
     };
 
     
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 //Main
 int main(){
@@ -130,25 +284,29 @@ int main(){
     Solveur Solveur_Devoir(Mesh_devoir,method); // Declaration solveur
     
     // Initial conditions
-    std::vector<double> Init_p ;
-    std::vector<double> Init_rho ;
-    std::vector<double> Init_u ;
+    std::vector<double> Init_p;
+    std::vector<double> Init_rho;
+    std::vector<double> Init_u;
+    std::vector<double> Init_e;
     std::vector<double> x_vector = Mesh_devoir.get_vector();
     for (int i = 0; i < n;i++) {
         if (x_vector[i] < 500 ){
             Init_p.push_back(1);
             Init_rho.push_back(1);
             Init_u.push_back(0);
+            Init_e.push_back(0);
         
         } else {
             Init_p.push_back(4);
             Init_rho.push_back(4);
             Init_u.push_back(0);
+            Init_e.push_back(0);
+            
         }
     }
-
-    Solveur_Devoir.Condition_initiales(Init_p,Init_rho,Init_u);
-    Solveur_Devoir.Solve_Mac_Cormack_Method();
+    Solveur_Devoir.Condition_initiales(Init_p,Init_rho,Init_u,Init_e);
+    Solveur_Devoir.Initialise_Euler_Element();
+    
 
     return 0;
     
