@@ -18,6 +18,16 @@ void printMatrix(const vector<vector<T>>& matrix) {
 
 
 
+void addColumns(std::vector<std::vector<double>>& matrix, int numColumnsBegin, int numColumnsEnd) {
+    // Add columns at the beginning and the end for each row
+    for (auto& row : matrix) {
+        // Add columns at the beginning (shift elements to the right)
+        row.insert(row.begin(), numColumnsBegin, row.front());
+
+        // Add columns at the end
+        row.insert(row.end(), numColumnsEnd, row.back());
+    }
+}
 
 
 
@@ -116,12 +126,12 @@ std::vector<double> Vector_Addition(std::vector<double> A,std::vector<double> B)
 class Mesh{
 public:
     //variable
-    double x1,x2,Delta_t;
+    double x1,x2,Delta_t,t;
     int n;
     std::vector<double> area; 
 
     //constructor
-    Mesh(double a, double b, int c, int d, std::vector<double> e ) : x1(a), x2(b), n(c), Delta_t(d), area(e) {
+    Mesh(double a, double b, int c, int d, std::vector<double> e,double f ) : x1(a), x2(b), n(c), Delta_t(d), area(e), t(f) {
     cout <<"********************** Mesh *****************************" << std::endl;
     cout <<"beginning x = "<< Mesh::x1 << std::endl;
     cout <<"end x = "<< Mesh::x2 << std::endl;
@@ -137,10 +147,10 @@ public:
         for(int i = 0; i < n ; i++){
             result.push_back(x1 + (i)*delta_x);
         };
-        cout << "Vector is: " << std::endl;
-        for (int i = 0; i < result.size(); i++) {
-            cout << result.at(i) << " ";  
-        }
+        //cout << "Vector is: " << std::endl;
+        //for (int i = 0; i < result.size(); i++) {
+            //cout << result.at(i) << " ";  
+        //}
         cout << endl;
         return result;
     };
@@ -183,11 +193,11 @@ public:
     std::vector<double> init_p, init_rho, init_u, init_e;
     double gamma = 1.40;
     std::vector<std::vector<double>> Q, F, S;
+     
 
     // Constructor
     Solveur (Mesh a, string b) : Mesh_to_use(a), method(b) {
     cout <<"********************** SOLVEUR *****************************" << std::endl;
-    cout << "Mesh used :" << endl;
     };
 
     // Creation matrice 1D contenant les conditions initiales 
@@ -236,8 +246,70 @@ public:
         Q = {Vector_Raw_Multiply(init_rho,Mesh_to_use.area),Vector_Raw_Multiply(rho_u,Mesh_to_use.area),Vector_Raw_Multiply(init_e,Mesh_to_use.area)};
         F = {Vector_Raw_Multiply(rho_u,Mesh_to_use.area),Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(rho_u_squared,P)),Vector_Raw_Multiply(Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(init_e,P)),init_u)};
         S = {zero(Mesh_to_use.n),Vector_Raw_Multiply(P,dAdx),zero(Mesh_to_use.n)};
+        cout<<"Q initial"<< endl;
+        printMatrix(Q);
         
     };
+
+    void MacCormack(){
+
+        //initialisation, pas conformable utilise Q,F,S
+
+        //Adding Ghost Cells (Fonctionne)
+        cout <<"Cell Ghosting"<< endl;
+        addColumns(Q,2,2);
+        addColumns(F,2,2);
+        addColumns(S,2,2);
+        printMatrix(Q);
+
+        //Début de la méthode MacCormack
+        double live_time = 0;
+        std::vector<std::vector<double>> Q_future = Q;
+        std::vector<std::vector<double>> F_future = F;
+        std::vector<std::vector<double>> S_future = S;
+
+        
+
+        while (live_time < Mesh_to_use.t){
+
+            //Double Boucle bébé
+            for (int i =0; i<Q.size();i++){
+                for (int j =2; i<Q[0].size()-2;i++){
+                    //le gros du code est ici
+
+                    //PREDICTOR STEP
+                    Q_future[i][j] = Q[i][j] - Mesh_to_use.Delta_t*(F[i][j]-F[i][j-1]) + Mesh_to_use.Delta_t*S[i][j];
+                    printMatrix(Q_future);
+
+                    //CORRECTORSTEP
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+                }
+            }
+            live_time +=  Mesh_to_use.Delta_t;
+        };
+
+        
+    }
+
+
 
     
 };
@@ -266,7 +338,8 @@ int main(){
     string method = "" ;
 
     double delta_x = (x2 - x1)/(n-1); //delta_x calculated
-    double delta_t = 2; //delta_t 
+    double delta_t = 1; //delta_t 
+    double t = 1000;
     double CFL = (c*delta_t)/delta_x; // CFL calculated
     cout <<"********************** PARAMETERS ***************************" << std::endl;
     cout<< "The CFL is:  "<<CFL << std::endl; 
@@ -279,7 +352,7 @@ int main(){
 
 
     // Beginning the Solve Process
-    Mesh Mesh_devoir(x1,x2,n,delta_t,area); // declaration object Mesh
+    Mesh Mesh_devoir(x1,x2,n,delta_t,area,t); // declaration object Mesh
     
     Solveur Solveur_Devoir(Mesh_devoir,method); // Declaration solveur
     
@@ -306,6 +379,7 @@ int main(){
     }
     Solveur_Devoir.Condition_initiales(Init_p,Init_rho,Init_u,Init_e);
     Solveur_Devoir.Initialise_Euler_Element();
+    Solveur_Devoir.MacCormack();
     
 
     return 0;
