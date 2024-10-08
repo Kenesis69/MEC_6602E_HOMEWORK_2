@@ -14,9 +14,28 @@ void printMatrix(const vector<vector<T>>& matrix) {
         }
         cout << endl; // Move to the next line after printing each row
     }
+    cout<< "----------------------------------"<< endl;
 }
 
 
+
+
+
+void removeColumns(std::vector<std::vector<double>>& matrix, int numColumnsBegin, int numColumnsEnd) {
+    // Supprimer des colonnes au début et à la fin pour chaque ligne
+    for (auto& row : matrix) {
+        // Vérifier que la taille de la ligne est suffisamment grande
+        if (row.size() > numColumnsBegin + numColumnsEnd) {
+            // Supprimer les colonnes du début
+            row.erase(row.begin(), row.begin() + numColumnsBegin);
+
+            // Supprimer les colonnes de la fin
+            row.erase(row.end() - numColumnsEnd, row.end());
+        } else {
+            std::cerr << "Error: Not enough columns to remove" << std::endl;
+        }
+    }
+}
 
 void addColumns(std::vector<std::vector<double>>& matrix, int numColumnsBegin, int numColumnsEnd) {
     // Add columns at the beginning and the end for each row
@@ -28,6 +47,8 @@ void addColumns(std::vector<std::vector<double>>& matrix, int numColumnsBegin, i
         row.insert(row.end(), numColumnsEnd, row.back());
     }
 }
+
+
 
 
 
@@ -56,6 +77,19 @@ std::vector<double> Vector_Raw_Multiply(std::vector<double> A, std::vector<doubl
 
     for (int i = 0; i<A.size(); i++){
         C.push_back(A[i]*B[i]);
+    };
+    return C;
+};
+
+
+//RAW division OF 2 VECTORS --> VECTOR
+std::vector<double> Vector_Raw_Divide(std::vector<double> A, std::vector<double> B){
+    if (A.size() != B.size()) {cout << "Vector_Raw_Multiply dimension conflict" << endl; exit(1);}
+
+    std::vector<double> C;
+
+    for (int i = 0; i<A.size(); i++){
+        C.push_back(A[i]/B[i]);
     };
     return C;
 };
@@ -126,26 +160,30 @@ std::vector<double> Vector_Addition(std::vector<double> A,std::vector<double> B)
 class Mesh{
 public:
     //variable
-    double x1,x2,Delta_t,t;
+    double x1,x2,Delta_t,t,Delta_x;
+    
     int n;
     std::vector<double> area; 
 
     //constructor
     Mesh(double a, double b, int c, int d, std::vector<double> e,double f ) : x1(a), x2(b), n(c), Delta_t(d), area(e), t(f) {
+    Delta_x = (x2 - x1)/(n-1);
     cout <<"********************** Mesh *****************************" << std::endl;
     cout <<"beginning x = "<< Mesh::x1 << std::endl;
     cout <<"end x = "<< Mesh::x2 << std::endl;
+    cout <<"Space step delta x = "<< Mesh::Delta_x << std::endl;
     cout <<"Time Step Delta_t = "<< Mesh::Delta_t << std::endl;
+    cout <<"Time t = "<< Mesh::t << std::endl;
     cout <<"number of nodes n = "<< Mesh::n << std::endl;
     }; 
 
 
     // vector getter and printer
     std::vector<double> get_vector(){
-        vector<double> result;
-        double delta_x = (x2 - x1)/(n-1);
+    vector<double> result;
+    
         for(int i = 0; i < n ; i++){
-            result.push_back(x1 + (i)*delta_x);
+            result.push_back(x1 + (i)*Delta_x);
         };
         //cout << "Vector is: " << std::endl;
         //for (int i = 0; i < result.size(); i++) {
@@ -223,13 +261,6 @@ public:
         std::vector<double> rho_u_squared = Vector_Raw_Multiply(rho_u,init_u); // simple ru squared
         
 
-        // now we initialise P = (gamma - 1)(e - pu^2/2)
-        std::vector<double> P;
-        for (int i = 0; i< Mesh_to_use.n; i++){
-            P.push_back((gamma-1)*(init_e[i]- rho_u_squared[i]*0.5));
-        }
-        
-
         // Initiasing dA over dx
         std::vector<double> dAdx;
         for (int i = 0; i< Mesh_to_use.n; i++){
@@ -237,17 +268,21 @@ public:
                 dAdx.push_back(0);
             }
             else{
-                dAdx.push_back((Mesh_to_use.area[i-1] + Mesh_to_use.area[i+1])/2);
+                dAdx.push_back((Mesh_to_use.area[i+1] - Mesh_to_use.area[i-1])/2);
             }
         }
 
 
         // initialisation des matrice Q,E,S selon les conditions initiales
         Q = {Vector_Raw_Multiply(init_rho,Mesh_to_use.area),Vector_Raw_Multiply(rho_u,Mesh_to_use.area),Vector_Raw_Multiply(init_e,Mesh_to_use.area)};
-        F = {Vector_Raw_Multiply(rho_u,Mesh_to_use.area),Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(rho_u_squared,P)),Vector_Raw_Multiply(Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(init_e,P)),init_u)};
-        S = {zero(Mesh_to_use.n),Vector_Raw_Multiply(P,dAdx),zero(Mesh_to_use.n)};
+        F = {Vector_Raw_Multiply(rho_u,Mesh_to_use.area),Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(rho_u_squared,init_p)),Vector_Raw_Multiply(Vector_Raw_Multiply(Mesh_to_use.area,Vector_Addition(init_e,init_p)),init_u)};
+        S = {zero(Mesh_to_use.n),Vector_Raw_Multiply(init_p,dAdx),zero(Mesh_to_use.n)};
         cout<<"Q initial"<< endl;
         printMatrix(Q);
+        cout<<"F initial"<< endl;
+        printMatrix(F);
+        cout<<"S initial"<< endl;
+        printMatrix(S);
         
     };
 
@@ -260,54 +295,136 @@ public:
         addColumns(Q,2,2);
         addColumns(F,2,2);
         addColumns(S,2,2);
+        
         printMatrix(Q);
+        printMatrix(F);
+        printMatrix(S);
 
         //Début de la méthode MacCormack
         double live_time = 0;
-        std::vector<std::vector<double>> Q_future = Q;
-        std::vector<std::vector<double>> F_future = F;
-        std::vector<std::vector<double>> S_future = S;
+        std::vector<std::vector<double>> Q_Corrected = Q;
+        std::vector<std::vector<double>> Q_Predictor = Q;
+        std::vector<std::vector<double>> F_Corrected = F;
+        std::vector<std::vector<double>> S_Corrected = S;
+        std::vector<std::vector<double>> F_Predictor = F;
+        std::vector<std::vector<double>> S_Predictor = S;
+
+        std::vector<double> rho(Mesh_to_use.n);
+        std::vector<double> P(Mesh_to_use.n);
+        std::vector<double> e(Mesh_to_use.n);
+        std::vector<double> u(Mesh_to_use.n);
 
         
 
-        while (live_time < Mesh_to_use.t){
-
-            //Double Boucle bébé
-            for (int i =0; i<Q.size();i++){
-                for (int j =2; i<Q[0].size()-2;i++){
+        
+        cout<< "Beginning of loop"<< endl;
+        cout<< "Time Step "<< Mesh_to_use.Delta_t << endl;
+        cout<< "Time "<< Mesh_to_use.t << endl;
+        for (double k=0; k<Mesh_to_use.t; k= k + Mesh_to_use.Delta_t){
+            cout<< "time: "<< k << endl;
+            //predictor STEP
+            for (int i =0; i <Q .size();i++){
+                for (int j =2; j<Q[0].size()-2;j++){
                     //le gros du code est ici
 
                     //PREDICTOR STEP
-                    Q_future[i][j] = Q[i][j] - Mesh_to_use.Delta_t*(F[i][j]-F[i][j-1]) + Mesh_to_use.Delta_t*S[i][j];
-                    printMatrix(Q_future);
-
-                    //CORRECTORSTEP
-
-
-
+                    Q_Predictor[i][j] = Q[i][j] - (Mesh_to_use.Delta_t / Mesh_to_use.Delta_x) * (F[i][j] - F[i][j - 1]) + Mesh_to_use.Delta_t * S[i][j];
+                    
+                    
+                    
+                    
 
 
 
+                };
+            };
 
-
-
-
-
-
-
-
-
-
-
-
-
-                }
+            
+            // Calcul 1 des propriétés
+            for (int p = 0; p < Mesh_to_use.n; p++) {
+                rho[p] = Q_Predictor[0][p + 2] / Mesh_to_use.area[p];
+                u[p] = Q_Predictor[1][p + 2] / Q_Predictor[0][p + 2];
+                e[p] = Q_Predictor[2][p + 2] / Mesh_to_use.area[p];
+                P[p] = (gamma - 1) * (e[p] - 0.5 * rho[p] * u[p] * u[p]);
             }
-            live_time +=  Mesh_to_use.Delta_t;
+
+ 
+
+            // calcul variation aire 
+
+            std::vector<double> dAdx;
+            for (int i = 0; i< Mesh_to_use.n; i++){
+                if (i == 0 || i == Mesh_to_use.n-1){
+                dAdx.push_back(0);
+            }
+                else{
+                dAdx.push_back((Mesh_to_use.area[i-1] + Mesh_to_use.area[i+1])/2);
+            }
+        }
+
+
+            // calcul de F et S
+            F_Predictor[0] = Q_Predictor[1];
+            F_Predictor[1] = Vector_Raw_Multiply(Vector_Addition(Vector_Raw_Multiply(rho,Vector_Raw_Square(u)),P),Mesh_to_use.area);
+            F_Predictor[2] = Vector_Raw_Multiply(Vector_Raw_Multiply(Vector_Addition(e,P),u),Mesh_to_use.area);
+            S_Predictor[0] = zero(Mesh_to_use.n);
+            S_Predictor[1] = Vector_Raw_Multiply(dAdx,P);
+            S_Predictor[2] = zero(Mesh_to_use.n);
+            
+        
+            //PREDICTOR STEP
+            for (int ii =0; ii <Q .size();ii++){
+                for (int jj =2; jj<Q[0].size()-2;jj++){
+                    
+
+                    //PREDICTOR STEP
+                    Q_Corrected[ii][jj] = Q[ii][jj] - Mesh_to_use.Delta_t*(F_Predictor[ii][jj+1] - F_Predictor[ii][jj])/Mesh_to_use.Delta_x + Mesh_to_use.Delta_t*S_Predictor[ii][jj];
+                    
+
+                    
+                    
+
+
+
+
+                };
+            };
+
+
+            // Calcul 2 des propriétés
+            for (int p = 0; p < Mesh_to_use.n; p++) {
+                rho[p] = Q_Corrected[0][p + 2] / Mesh_to_use.area[p];
+                u[p] = Q_Corrected[1][p + 2] / Q_Corrected[0][p + 2];
+                e[p] = Q_Corrected[2][p + 2] / Mesh_to_use.area[p];
+                P[p] = (gamma - 1) * (e[p] - 0.5 * rho[p] * u[p] * u[p]);
+            }
+
+            F_Corrected[0] = Q_Predictor[1];
+            F_Corrected[1] = Vector_Raw_Multiply(Vector_Addition(Vector_Raw_Multiply(rho,Vector_Raw_Square(u)),P),Mesh_to_use.area);
+            F_Corrected[2] = Vector_Raw_Multiply(Vector_Raw_Multiply(Vector_Addition(e,P),u),Mesh_to_use.area);
+            S_Corrected[0] = zero(Mesh_to_use.n);
+            S_Corrected[1] = Vector_Raw_Multiply(dAdx,P);
+            S_Corrected[2] = zero(Mesh_to_use.n);
+
+
+            F = F_Corrected;
+            S = S_Corrected;
+            Q = Q_Corrected;
+            printMatrix(Q_Corrected);
+
+            
+
+
+
+
+
+           
+
+            
         };
 
         
-    }
+    };
 
 
 
@@ -330,16 +447,16 @@ public:
 //Main
 int main(){
     //definition parameters
-    double c = 0.5; //constant c
+    double c = 1; //constant c
     double x1 = 0.0; // beginning
     double x2  = 1000 ; // end
-    int n = 5; // number of point
+    int n = 4; // number of point
     std::vector<double> area; // definition de l'aire
     string method = "" ;
 
     double delta_x = (x2 - x1)/(n-1); //delta_x calculated
     double delta_t = 1; //delta_t 
-    double t = 1000;
+    double t = 250;
     double CFL = (c*delta_t)/delta_x; // CFL calculated
     cout <<"********************** PARAMETERS ***************************" << std::endl;
     cout<< "The CFL is:  "<<CFL << std::endl; 
