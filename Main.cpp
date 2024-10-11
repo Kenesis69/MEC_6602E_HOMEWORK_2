@@ -249,6 +249,9 @@ public:
                 init_rho = rho;
                 init_u = u;
                 init_e = e;
+                cout<< "Here are the initials conditions"<< endl;
+                std::vector<std::vector<double>> init_cond = {init_rho,init_u,init_p};
+                printMatrix(init_cond);
     };
 
 
@@ -314,6 +317,19 @@ public:
         std::vector<double> e(Mesh_to_use.n);
         std::vector<double> u(Mesh_to_use.n);
 
+        std::vector<double> rho_Predictor(Mesh_to_use.n);
+        std::vector<double> P_Predictor(Mesh_to_use.n);
+        std::vector<double> e_Predictor(Mesh_to_use.n);
+        std::vector<double> u_Predictor(Mesh_to_use.n);
+
+        std::vector<double> rho_Corrected(Mesh_to_use.n);
+        std::vector<double> P_Corrected(Mesh_to_use.n);
+        std::vector<double> e_Corrected(Mesh_to_use.n);
+        std::vector<double> u_Corrected(Mesh_to_use.n);
+ 
+
+
+        std::vector<std::vector<double>> result;
         
 
         
@@ -328,7 +344,10 @@ public:
                     //le gros du code est ici
 
                     //PREDICTOR STEP
-                    Q_Predictor[i][j] = Q[i][j] - (Mesh_to_use.Delta_t / Mesh_to_use.Delta_x) * (F[i][j] - F[i][j - 1]) + Mesh_to_use.Delta_t * S[i][j];
+                    // Predictor Step (Corrected forward difference)
+                    Q_Predictor[i][j] = Q[i][j] - (Mesh_to_use.Delta_t / Mesh_to_use.Delta_x) * (F[i][j] - F[i][j-1]) + Mesh_to_use.Delta_t * S[i][j];
+
+
                     
                     
                     
@@ -340,12 +359,13 @@ public:
             };
 
             
-            // Calcul 1 des propriétés
+            // Calcul predictif des propriétés
             for (int p = 0; p < Mesh_to_use.n; p++) {
-                rho[p] = Q_Predictor[0][p + 2] / Mesh_to_use.area[p];
-                u[p] = Q_Predictor[1][p + 2] / Q_Predictor[0][p + 2];
-                e[p] = Q_Predictor[2][p + 2] / Mesh_to_use.area[p];
-                P[p] = (gamma - 1) * (e[p] - 0.5 * rho[p] * u[p] * u[p]);
+                rho_Predictor[p] = Q_Predictor[0][p + 2] / Mesh_to_use.area[p];
+                u_Predictor[p] = Q_Predictor[1][p + 2] / Q_Predictor[0][p + 2];
+                e_Predictor[p] = Q_Predictor[2][p + 2] / Mesh_to_use.area[p];
+                P_Predictor[p] = (gamma - 1) * (e_Predictor[p] - 0.5 * rho_Predictor[p] * u_Predictor[p] * u_Predictor[p]);
+
             }
 
  
@@ -358,17 +378,17 @@ public:
                 dAdx.push_back(0);
             }
                 else{
-                dAdx.push_back((Mesh_to_use.area[i-1] + Mesh_to_use.area[i+1])/2);
+                dAdx.push_back((Mesh_to_use.area[i-1] + Mesh_to_use.area[i+1])/(2*Mesh_to_use.Delta_x));
             }
         }
 
 
             // calcul de F et S
             F_Predictor[0] = Q_Predictor[1];
-            F_Predictor[1] = Vector_Raw_Multiply(Vector_Addition(Vector_Raw_Multiply(rho,Vector_Raw_Square(u)),P),Mesh_to_use.area);
-            F_Predictor[2] = Vector_Raw_Multiply(Vector_Raw_Multiply(Vector_Addition(e,P),u),Mesh_to_use.area);
+            F_Predictor[1] = Vector_Raw_Multiply(Vector_Addition(Vector_Raw_Multiply(rho_Predictor,Vector_Raw_Square(u_Predictor)),P_Predictor),Mesh_to_use.area);
+            F_Predictor[2] = Vector_Raw_Multiply(Vector_Raw_Multiply(Vector_Addition(e_Predictor,P_Predictor),u_Predictor),Mesh_to_use.area);
             S_Predictor[0] = zero(Mesh_to_use.n);
-            S_Predictor[1] = Vector_Raw_Multiply(dAdx,P);
+            S_Predictor[1] = Vector_Raw_Multiply(dAdx,P_Corrected);
             S_Predictor[2] = zero(Mesh_to_use.n);
             
         
@@ -378,7 +398,11 @@ public:
                     
 
                     //PREDICTOR STEP
-                    Q_Corrected[ii][jj] = Q[ii][jj] - Mesh_to_use.Delta_t*(F_Predictor[ii][jj+1] - F_Predictor[ii][jj])/Mesh_to_use.Delta_x + Mesh_to_use.Delta_t*S_Predictor[ii][jj];
+                    // Corrector Step (Corrected backward difference starting from Q_Predictor)
+                    Q_Corrected[ii][jj] = Q[ii][jj] - (Mesh_to_use.Delta_t / Mesh_to_use.Delta_x) * (F_Predictor[ii][jj+1] - F_Predictor[ii][jj]) + Mesh_to_use.Delta_t * S_Predictor[ii][jj];
+
+                    
+                    
                     
 
                     
@@ -391,26 +415,46 @@ public:
             };
 
 
-            // Calcul 2 des propriétés
+            // Calcul correctif des proprietés
             for (int p = 0; p < Mesh_to_use.n; p++) {
-                rho[p] = Q_Corrected[0][p + 2] / Mesh_to_use.area[p];
-                u[p] = Q_Corrected[1][p + 2] / Q_Corrected[0][p + 2];
-                e[p] = Q_Corrected[2][p + 2] / Mesh_to_use.area[p];
-                P[p] = (gamma - 1) * (e[p] - 0.5 * rho[p] * u[p] * u[p]);
+                rho_Corrected[p] = Q_Corrected[0][p + 2] / Mesh_to_use.area[p];
+                u_Corrected[p] = Q_Corrected[1][p + 2] / Q_Corrected[0][p + 2];
+                e_Corrected[p] = Q_Corrected[2][p + 2] / Mesh_to_use.area[p];
+                P_Corrected[p] = (gamma - 1) * (e_Corrected[p] - 0.5 * rho_Corrected[p] * u_Corrected[p] * u_Corrected[p]);
+
             }
 
-            F_Corrected[0] = Q_Predictor[1];
-            F_Corrected[1] = Vector_Raw_Multiply(Vector_Addition(Vector_Raw_Multiply(rho,Vector_Raw_Square(u)),P),Mesh_to_use.area);
-            F_Corrected[2] = Vector_Raw_Multiply(Vector_Raw_Multiply(Vector_Addition(e,P),u),Mesh_to_use.area);
+            F_Corrected[0] = Q_Corrected[1];
+            F_Corrected[1] = Vector_Raw_Multiply(Vector_Addition(Vector_Raw_Multiply(rho_Corrected,Vector_Raw_Square(u_Corrected)),P_Corrected),Mesh_to_use.area);
+            F_Corrected[2] = Vector_Raw_Multiply(Vector_Raw_Multiply(Vector_Addition(e_Corrected,P_Corrected),u_Corrected),Mesh_to_use.area);
             S_Corrected[0] = zero(Mesh_to_use.n);
-            S_Corrected[1] = Vector_Raw_Multiply(dAdx,P);
+            S_Corrected[1] = Vector_Raw_Multiply(dAdx,P_Corrected);
             S_Corrected[2] = zero(Mesh_to_use.n);
 
+            // Apply boundary conditions to Q_Corrected
+                        // Apply boundary conditions to Q_Corrected
+            int total_cells = Mesh_to_use.n + 4; // Total cells including ghost cells
+            for (int var = 0; var < Q.size(); var++) {
+                // Left boundary (indices 0 and 1)
+                Q_Corrected[var][0] = Q_Corrected[var][2];
+                Q_Corrected[var][1] = Q_Corrected[var][2];
+            
+                // Right boundary (indices total_cells - 2 and total_cells - 1)
+                Q_Corrected[var][total_cells - 1] = Q_Corrected[var][total_cells - 3];
+                Q_Corrected[var][total_cells - 2] = Q_Corrected[var][total_cells - 3];
+            }
 
             F = F_Corrected;
             S = S_Corrected;
             Q = Q_Corrected;
-            printMatrix(Q_Corrected);
+
+
+
+            
+            result = {rho_Corrected, u_Corrected,e_Corrected, P_Corrected};
+            printMatrix(result);
+           
+
 
             
 
@@ -447,15 +491,16 @@ public:
 //Main
 int main(){
     //definition parameters
+    double gamma = 1.4;
     double c = 1; //constant c
     double x1 = 0.0; // beginning
     double x2  = 1000 ; // end
-    int n = 4; // number of point
+    int n = 20; // number of point
     std::vector<double> area; // definition de l'aire
     string method = "" ;
 
     double delta_x = (x2 - x1)/(n-1); //delta_x calculated
-    double delta_t = 1; //delta_t 
+    double delta_t = 10; //delta_t 
     double t = 250;
     double CFL = (c*delta_t)/delta_x; // CFL calculated
     cout <<"********************** PARAMETERS ***************************" << std::endl;
@@ -484,13 +529,14 @@ int main(){
             Init_p.push_back(1);
             Init_rho.push_back(1);
             Init_u.push_back(0);
-            Init_e.push_back(0);
+            Init_e.push_back(1/(gamma-1));
+            
         
         } else {
             Init_p.push_back(4);
             Init_rho.push_back(4);
             Init_u.push_back(0);
-            Init_e.push_back(0);
+            Init_e.push_back(4/(gamma-1));
             
         }
     }
