@@ -90,7 +90,7 @@ class Solver():
         # Activer le mode interactif
             # Activer le mode interactif
         plt.ion()
-        fig, (ax1, ax2, ax3) = plt.subplots(3, 1, figsize=(8, 6))
+        fig, (ax1, ax2, ax3,ax4) = plt.subplots(4, 1, figsize=(8, 8))
         fig.suptitle("distribution of density, pressure ,mach number and L2, along x")
         # Initialiser les lignes pour la densité et la pression
         line1, = ax1.plot(self.mesh.x, self.rho, label='Densité ')
@@ -112,7 +112,11 @@ class Solver():
         ax3.legend()
         ax3.grid(True)
 
-
+        line4, = ax4.plot([], [], label='L2 Error')
+        ax4.set_xlabel('log Iterations')
+        ax4.set_ylabel('log L2 Error')
+        ax4.legend()
+        ax4.grid(True)
 
 
 
@@ -183,7 +187,7 @@ class Solver():
             Q = Q_corrector
             F = F_corrector
             S = S_corrector
-            L2 = (np.average(rho_corrector)**2 - np.average(self.rho)**2)**0.5
+            L2 = np.log(np.sqrt(np.average((rho_corrector - self.rho)**2)))
             L2s.append(L2)
             
             self.rho = rho_corrector
@@ -220,6 +224,9 @@ class Solver():
                 ax3.relim()
                 ax3.autoscale_view()
 
+                line4.set_data(np.log(iterations), L2s)
+                ax4.relim()
+                ax4.autoscale_view()
 
 
                 # Redessiner la figure

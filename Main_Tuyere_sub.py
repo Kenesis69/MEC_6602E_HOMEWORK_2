@@ -39,10 +39,11 @@ init_e = np.zeros(n)
 init_rho = np.full(n, rho_0)
 init_p = np.full(n, p_0)
 init_u = np.full(n, 0.9*u_0)
+init_u[0] = u_0
 
 init_rho[-1] = (1.9)**(1/gamma)*init_rho[0]
 init_p[-1] = 1.9 * p_0
-init_u[-1] = u_0*0.9
+init_u[-1] = 0.9*u_0
 
 init_e = init_p / (gamma - 1) + 0.5 * init_rho * init_u**2
 

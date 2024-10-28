@@ -10,7 +10,7 @@ x1 = 0.0
 x2 = 10.0
 n = 201
 t = 250.0  
-CFL = 0.5
+CFL = 1.1
 method = "Macormack"
 
 #Cas tube: Aire constante
@@ -52,7 +52,7 @@ Maillage = Mesh(x1, x2, n, Aire, t)
 
 Solveur = Solver(Maillage,method,CFL)
 Solveur.Conditions_Initiales(init_p,init_rho,init_u,init_e)
-Solveur.Solve_Beam()
+Solveur.Solve_Macormack()
 
 
 

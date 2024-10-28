@@ -10,7 +10,7 @@ x1 = 0.0
 x2 = 1000.0  
 n = 1001
 t = 250.0  
-CFL = 0.75
+CFL = 1.1
 method = "Macormack"
 
 #Cas tube: Aire constante
