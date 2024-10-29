@@ -10,7 +10,7 @@ x1 = 0.0
 x2 = 1000.0  
 n = 1001
 t = 250.0  
-CFL = 1.1
+CFL = 0.9
 method = "Macormack"
 
 #Cas tube: Aire constante
@@ -24,13 +24,13 @@ init_e = np.zeros(n)
 
 for i in range(0,n):
     if x[i] < 500:
-        init_p[i] = 4
-        init_rho[i] = 4
+        init_p[i] = 1
+        init_rho[i] = 1
         init_u[i] = 0
         init_e[i] = init_p[i]/(gamma -1) + init_rho[i]*init_u[i]**2 * 0.5
     elif x[i] >= 500: 
-        init_p[i] = 1
-        init_rho[i] = 1
+        init_p[i] = 4
+        init_rho[i] = 4
         init_u[i] = 0
         init_e[i] = init_p[i]/(gamma -1) + init_rho[i]*init_u[i]**2 * 0.5
 

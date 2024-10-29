@@ -15,8 +15,8 @@ class Mesh():
         #Ajout variation d'aire
         dAdx = np.zeros(n)
         for i in range(0,self.n):
-            #dAdx[i] = 0.2776*np.cosh(4.0-0.8*self.x[i])**-2 #tuyere
-            dAdx[i] = 0 #tube
+            dAdx[i] = 0.2776*np.cosh(4.0-0.8*self.x[i])**-2 #tuyere
+            #dAdx[i] = 0 #tube
             #if i == 0:
                 #dAdx[i] = (area[i+1]-area[i])/delta_x
             #elif i == n-1:

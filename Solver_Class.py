@@ -1,7 +1,9 @@
-import numpy as np
-import Mesh_Class as Mesh
 import matplotlib.pyplot as plt
+import numpy as np
 from matplotlib.animation import FuncAnimation
+
+import Mesh_Class as Mesh
+
 
 class Solver():
 
@@ -243,54 +245,232 @@ class Solver():
         plt.ioff()
         plt.show()
     
+
+
+
     def Solve_Beam(self,theta = 0.5,ei = 0.3, ee = 0.1):
-        #ititialisation
-        I = np.identity(self.mesh.n + 2)
-        Delta_t = self.CFL/(abs(self.u) + (self.gamma*self.p/self.rho)**0.5)*self.mesh.delta_x
-        delta_t = min(Delta_t)
-        A_matrix = []
-        Q_matrix = []
-        F_matrix = []
-        S_matrix = []
-        #initialisation de A avec ghost cells
+        def compute_flux(Q,xi):
+            rhoA = Q[0]
+            rhouA = Q[1]
+            eA = Q[2]
+
+            rho = rhoA/self.mesh.area[xi]
+            u = rhouA / rhoA
+            e = eA/self.mesh.area[xi]
+            p = (self.gamma - 1) * (e - 0.5 * rho * u**2)
+            
+            H = (e + p) / rho  # Enthalpie totale
+
+            # Flux vector F
+            F = np.zeros_like(Q)
+            F[0] = rhouA
+            F[1] = (rho * u**2 + p)*self.mesh.area[xi]
+            F[2] = u * (e + p) * self.mesh.area[xi]
+
+            return F
+        
+        def compute_source(Q,xi):
+            rhoA = Q[0]
+            rhouA = Q[1]
+            eA = Q[2]
+
+            rho = rhoA/self.mesh.area[xi]
+            u = rhouA / rhoA
+            e = eA/self.mesh.area[xi]
+            p = (self.gamma - 1) * (e - 0.5 * rho * u**2)
+            
+            H = (e + p) / rho  # Enthalpie totale
+
+            # Flux vector F
+            S = np.zeros_like(Q)
+            S[0] = 0
+            S[1] = p*self.mesh.dAdx[xi]
+            S[2] = 0
+            return S
+        
+        def compute_jacobian(Q,xi):
+            rhoA = Q[0]
+            rhouA = Q[1]
+            eA = Q[2]
+
+            rho = Q[0]/self.mesh.area[xi]
+            u = rhouA / rhoA
+            e = eA/self.mesh.area[xi]
+            p = (self.gamma - 1) * (e - 0.5 * rho * u**2)
+            H = (e + p) / rho  # Enthalpie totale
+
+            # Calcul de la matrice Jacobienne A
+            A = np.zeros((3, 3))
+            A[0, 0] = 0
+            A[0, 1] = 1
+            A[0, 2] = 0
+
+            A[1, 0] = (self.gamma - 3) / 2 * u**2
+            A[1, 1] = (3 - self.gamma) * u
+            A[1, 2] = self.gamma - 1
+
+            A[2, 0] = u * ((self.gamma - 1) / 2 * u**2 - H)
+            A[2, 1] = H - (self.gamma - 1) * u**2
+            A[2, 2] = self.gamma * u
+
+            return A
+        def apply_boundary_conditions(Q):
+            # For example, fixed boundary conditions tube !!!
+            Q[:, 0] = Q[:, 2]      # Left boundary
+            Q[:, 1] = Q[:, 2]
+            Q[:, -2] = Q[:, -3]    # Right boundary
+            Q[:, -1] = Q[:, -3]
+            return Q
+        def beam_warming_step(Q):
+            dx = self.mesh.delta_x
+            nx = self.mesh.n + 4  # Including ghost cells
+            Q = apply_boundary_conditions(Q)
+            Q_new = Q.copy()
+            theta = 1  # Implicit weighting parameter
+
+            # Dissipation coefficients
+            epsilon_i = 0.25  # First-order dissipation coefficient
+            epsilon_e = 0.01  # Fourth-order dissipation coefficient
+
+            # Calculate primitive variables and maximum wave speed for CFL condition
+            rhoA = Q[0, 2:-2]
+            rhouA = Q[1, 2:-2]
+            eA = Q[2, 2:-2]
+            A = self.mesh.area
+            rho = rhoA / A
+            u = rhouA / rhoA
+            e = eA / A
+            p = (self.gamma - 1) * (e - 0.5 * rho * u**2)
+            a = np.sqrt(self.gamma * p / rho)
+            max_speed = np.max(np.abs(u) + a)
+            dt = self.CFL * dx / max_speed
+
+            for i in range(2, nx - 2):
+                xi = i - 2  # Index for the area array without ghost cells
+
+                # Compute fluxes at current and previous cells
+                F_i = compute_flux(Q[:, i], xi)
+                F_im1 = compute_flux(Q[:, i - 1], xi - 1)
+                A_i = compute_jacobian(Q[:, i], xi)
+                S_i = compute_source(Q[:, i], xi)
+                # First-order dissipation term
+                grad_Delta_x = (Q[:, i + 1] - Q[:, i - 1]) / (2 * dx)
+                dissipation_term_1 = epsilon_i * grad_Delta_x
+
+                # Fourth-order dissipation term
+                grad2_Delta_x = (Q[:, i + 1] - 2 * Q[:, i] + Q[:, i - 1]) / (dx ** 2)
+                dissipation_term_2 = epsilon_e * grad2_Delta_x
+
+                # Right-Hand Side
+                RHS = - (dt / dx) * (F_i - F_im1) - dt * S_i + dissipation_term_2 - dissipation_term_1
+
+                # Left-Hand Side matrix including first-order dissipation
+                LHS = np.eye(3) + (theta * dt / dx) * A_i 
+
+                # Solve for dQ
+                dQ = np.linalg.solve(LHS, RHS)
+
+                # Update Q
+                Q_new[:, i] += dQ
+
+            return Q_new, dt
+        
+
+
+        plt.ion()
+        fig, (ax1, ax2, ax3,ax4) = plt.subplots(4, 1, figsize=(8, 8))
+        fig.suptitle("distribution of density, pressure ,mach number and L2, along x")
+        # Initialiser les lignes pour la densité et la pression
+        line1, = ax1.plot(self.mesh.x, self.rho, label='Densité ')
+        ax1.set_xlabel('x')
+        ax1.set_ylabel('Densité')
+        ax1.legend()
+        ax1.grid(True)
+
+        line2, = ax2.plot(self.mesh.x, self.p, label='Pression ')
+        ax2.set_xlabel('x')
+        ax2.set_ylabel('Pression ')
+        ax2.legend()
+        ax2.grid(True)
+
+
+        line3, = ax3.plot(self.mesh.x, self.u/(self.gamma*self.p/self.rho)**0.5, label='Mac Number ')
+        ax3.set_xlabel('x')
+        ax3.set_ylabel('Mach number')
+        ax3.legend()
+        ax3.grid(True)
+
+        line4, = ax4.plot([], [], label='L2 Error')
+        ax4.set_xlabel('log Iterations')
+        ax4.set_ylabel('log L2 Error')
+        ax4.legend()
+        ax4.grid(True)
+
+
+        live_time = 0
+        iteration = 0 
+         # Initial Q
+        Q = np.zeros((3, self.mesh.n + 4))
+        Q[0, 2:-2] = self.rho*self.mesh.area
+        Q[1, 2:-2] = Q[0, 2:-2] * self.u
+        Q[2, 2:-2] = self.e*self.mesh.area
+        Q = apply_boundary_conditions(Q)
+
+        live_time = 0
+        while live_time < self.mesh.t:
+            Q, dt = beam_warming_step(Q)
+            # Apply boundary conditions
+            Q = apply_boundary_conditions(Q)
+
+            # Update live_time
+            live_time += dt
+            self.rho = Q[0,2:-2]/self.mesh.area
+            self.u = Q[1,2:-2]/Q[0,2:-2]
+            self.e = Q[2,2:-2]/self.mesh.area
+            self.p = (self.gamma - 1) * (self.e - self.rho*self.u**2 * 0.5)
+            print("============================== Pressure ======================================")
+            print (self.p)
+            print("============================== Rho ===========================================")
+            print (self.rho)
+            print("============================== Speed =========================================")
+            print (self.u)
+            print("============================== Energy ========================================")
+            print (self.e)
+            iterations = self.mesh.x
+            if iteration%10 == 0:
+                line1.set_ydata(self.rho)
+                ax1.relim()
+                ax1.autoscale_view()
+
+                # Mise à jour des données pour la pression
+                line2.set_ydata(self.p)
+                ax2.relim()
+                ax2.autoscale_view()
+
+                            
+                # Mise à jour des données pour le nombre de mach
+                line3.set_ydata(self.u/(self.gamma*self.p/self.rho)**0.5)
+                ax3.relim()
+                ax3.autoscale_view()
+
+                line4.set_data(np.log(iterations), (self.gamma*self.p/self.rho)**0.5)
+                ax4.relim()
+                ax4.autoscale_view()
+
+
+                # Redessiner la figure
+
+                plt.draw()
+                plt.pause(0.01)
+        
+        plt.ioff()
+        plt.show()
+
 
         
-        for i in range(0,self.mesh.n):
-            H = (self.e[i] + self.p[i])/self.rho[i]
-            A_matrix.append(np.array([[0,1,0],
-                               [self.u[i]*((self.gamma-3)/2),(self.gamma-3)*self.u[i],self.gamma-1],
-                               [self.u[i]*(((self.gamma-1)/2)*self.u[i]**2 - H),  H - (self.gamma-1)*self.u[i]**2, self.gamma*self.u[i]]]))
-            
-            Q_matrix.append(np.array([[self.rho[i]*self.mesh.area[i]
-                             ,self.rho[i]*self.mesh.area[i]*self.u[i]
-                             ,self.e[i]*self.mesh.area[i]]]))
-            
-            F_matrix.append(np.array([[self.rho[i]*self.u[i]**2*self.mesh.area[i],
-                                       (self.rho[i]*self.u[i]**2 + self.p[i])*self.mesh.area[i],
-                                       self.u[i]*self.mesh.area[i]*(self.e[i]*self.p[i])]]))
-            
-            S_matrix.append(np.array([[0,self.mesh.area[i]*self.mesh.dAdx,0]],dtype=object))
-            
-        A_left = A_matrix[0]
-        A_right = A_matrix[-1]
-        F_left = F_matrix[0]
-        F_right = F_matrix[-1]
-        S_left = S_matrix[0]
-        S_right = S_matrix[-1]
-        Q_left = Q_matrix[0]
-        Q_right = Q_matrix[-1]
 
+            
 
-
-
-        A_matrix.append(A_right)
-        A_matrix.insert(0,A_left)
-        F_matrix.append(F_right)
-        F_matrix.insert(0,F_left)
-        S_matrix.append(S_right)
-        S_matrix.insert(0,S_left)
-        Q_matrix.append(Q_right)
-        Q_matrix.insert(0,Q_left)
 
         
 

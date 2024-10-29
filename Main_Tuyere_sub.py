@@ -8,9 +8,9 @@ import matplotlib.pyplot as plt
 gamma = 1.4
 x1 = 0.0  
 x2 = 10.0
-n = 501
+n = 1001
 t = 250.0  
-CFL = 1.1
+CFL = 0.40
 method = "Macormack"
 
 #Cas tube: Aire constante
